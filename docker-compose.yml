@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      SA_PASSWORD: "P@ssw0rd!"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P $SA_PASSWORD -Q \"SELECT 1\" ]"]
+    volumes:
+      - mssql-data:/var/opt/mssql
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  api-gateway:
+    build: ./src/api-gateway
+    depends_on:
+      - catalog
+      - basket
+      - orders
+      - identity
+    ports:
+      - "5000:80"
+
+  catalog:
+    build: ./src/catalog
+    environment:
+      - ConnectionStrings__Default=Server=mssql,1433;Database=catalogdb;User Id=sa;Password=P@ssw0rd!
+      - RabbitMQ__Host=rabbitmq
+    ports:
+      - "5001:80"
+    depends_on:
+      - mssql
+      - rabbitmq
+
+  basket:
+    build: ./src/basket
+    environment:
+      - ConnectionStrings__Default=Server=mssql,1433;Database=basketdb;User Id=sa;Password=P@ssw0rd!
+      - RabbitMQ__Host=rabbitmq
+    ports:
+      - "5002:80"
+    depends_on:
+      - mssql
+      - rabbitmq
+
+  orders:
+    build: ./src/orders
+    environment:
+      - ConnectionStrings__Default=Server=mssql,1433;Database=ordersdb;User Id=sa;Password=P@ssw0rd!
+      - RabbitMQ__Host=rabbitmq
+      - STRIPE__SecretKey=__STRIPE_SECRET_PLACEHOLDER__
+    ports:
+      - "5003:80"
+    depends_on:
+      - mssql
+      - rabbitmq
+
+  identity:
+    build: ./src/identity
+    environment:
+      - ConnectionStrings__Default=Server=mssql,1433;Database=identitydb;User Id=sa;Password=P@ssw0rd!
+    ports:
+      - "5004:80"
+    depends_on:
+      - mssql
+
+  payments:
+    build: ./src/payments
+    environment:
+      - STRIPE__SecretKey=__STRIPE_SECRET_PLACEHOLDER__
+      - RabbitMQ__Host=rabbitmq
+    ports:
+      - "5005:80"
+    depends_on:
+      - rabbitmq
+
+volumes:
+  mssql-data:

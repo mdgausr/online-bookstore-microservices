@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog
+  namespace: online-bookstore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: catalog
+  template:
+    metadata:
+      labels:
+        app: catalog
+    spec:
+      containers:
+        - name: catalog
+          image: online-bookstore/catalog:latest
+          ports:
+            - containerPort: 80
+          env:
+            - name: ConnectionStrings__Default
+              value: "Server=mssql;Database=catalogdb;User Id=sa;Password=P@ssw0rd!"
+            - name: RabbitMQ__Host
+              value: "rabbitmq"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog
+  namespace: online-bookstore
+spec:
+  selector:
+    app: catalog
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

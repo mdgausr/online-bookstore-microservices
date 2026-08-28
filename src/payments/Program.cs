@@ -20,14 +20,36 @@ if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 
 app.MapGet("/health", () => Results.Ok(new { status = "Payments OK" }));
 
-app.MapPost("/api/payments/charge", async (PaymentModel model) =>
+app.MapPost("/api/payments/create-payment-intent", async (CreatePaymentModel model) =>
 {
-    // Minimal Stripe charge simulation - in production call Stripe's PaymentIntent API
-    // Here we return a simulated successful response
-    return Results.Ok(new { success = true, charged = model.Amount });
+    var options = new PaymentIntentCreateOptions
+    {
+        Amount = (long)(model.Amount * 100),
+        Currency = "usd",
+        Metadata = new Dictionary<string, string>
+        {
+            { "orderId", model.OrderId.ToString() }
+        }
+    };
+    var service = new PaymentIntentService();
+    var pi = await service.CreateAsync(options);
+    return Results.Ok(new { clientSecret = pi.ClientSecret, id = pi.Id });
 });
 
-// Subscribe to order.created events and attempt to reserve inventory or charge
+// For demo/testing: confirm payment simulation endpoint that publishes PaymentProcessed
+app.MapPost("/api/payments/simulate-confirm", (SimulateConfirmModel model) =>
+{
+    var factory = new ConnectionFactory() { HostName = rabbitHost };
+    using var conn = factory.CreateConnection();
+    using var channel = conn.CreateModel();
+    channel.ExchangeDeclare("payments-exchange", "topic", durable: true);
+    var message = new PaymentProcessed(model.OrderId, model.Success, model.PaymentIntentId);
+    var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(message));
+    channel.BasicPublish(exchange: "payments-exchange", routingKey: "payment.processed", body: body);
+    return Results.Ok(new { published = true });
+});
+
+// Keep an example subscriber to orders if needed
 _ = Task.Run(() =>
 {
     try
@@ -45,7 +67,7 @@ _ = Task.Run(() =>
             var text = Encoding.UTF8.GetString(body);
             var order = JsonSerializer.Deserialize<OrderCreated>(text);
             Console.WriteLine($"[Payments] Received OrderCreated: OrderId={order?.OrderId} Total={order?.Total}");
-            // Here we would interact with Stripe and publish PaymentProcessed message
+            // In a real app, you might create a PaymentIntent here or reserve funds
         };
         channel.BasicConsume(queue: qName, autoAck: true, consumer: consumer);
         while (true) Thread.Sleep(1000);
@@ -58,4 +80,5 @@ _ = Task.Run(() =>
 
 app.Run();
 
-record PaymentModel(Guid OrderId, decimal Amount);
+record CreatePaymentModel(Guid OrderId, decimal Amount);
+record SimulateConfirmModel(Guid OrderId, bool Success, string? PaymentIntentId);

@@ -4,8 +4,6 @@ using System.Data;
 using Microsoft.OpenApi.Models;
 using Catalog.Repositories;
 using Catalog.Models;
-using Basket.Repositories;
-using Orders.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,10 +28,25 @@ app.MapGet("/api/books", async (IBookRepository repo) =>
     return Results.Ok(books);
 });
 
+app.MapGet("/api/books/search", async (string q, IBookRepository repo) =>
+{
+    if (string.IsNullOrWhiteSpace(q)) return Results.BadRequest("q is required");
+    var results = await repo.SearchAsync(q);
+    return Results.Ok(results);
+});
+
 app.MapGet("/api/books/{id}", async (int id, IBookRepository repo) =>
 {
     var book = await repo.GetByIdAsync(id);
-    return book is null ? Results.NotFound() : Results.Ok(book);
+    if (book == null) return Results.NotFound();
+    var promo = await repo.GetPromotionForBookAsync(id);
+    return Results.Ok(new { book, promotion = promo });
+});
+
+app.MapGet("/api/books/{id}/reviews", async (int id, IBookRepository repo) =>
+{
+    var reviews = await repo.GetReviewsAsync(id);
+    return Results.Ok(reviews);
 });
 
 app.MapPost("/api/books", async (BookCreateModel model, IBookRepository repo) =>

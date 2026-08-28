@@ -9,6 +9,9 @@ public interface IBookRepository
     Task<Book?> GetByIdAsync(int id);
     Task<int> CreateAsync(Book book);
     Task AddReviewAsync(int bookId, Review review);
+    Task<IEnumerable<object>> SearchAsync(string q);
+    Task<object?> GetPromotionForBookAsync(int bookId);
+    Task<IEnumerable<object>> GetReviewsAsync(int bookId);
 }
 
 public class BookRepository : IBookRepository
@@ -38,5 +41,23 @@ public class BookRepository : IBookRepository
     {
         var sql = "INSERT INTO Reviews (BookId, Author, Rating, Comment, CreatedAt) VALUES (@BookId, @Author, @Rating, @Comment, GETUTCDATE())";
         await _db.ExecuteAsync(sql, new { BookId = bookId, review.Author, review.Rating, review.Comment });
+    }
+
+    public async Task<IEnumerable<object>> SearchAsync(string q)
+    {
+        var sql = "SELECT Id, Title, Author, Price, Description, Stock FROM Books WHERE Title LIKE @q OR Author LIKE @q OR Description LIKE @q";
+        return (await _db.QueryAsync(sql, new { q = "%" + q + "%" })).Cast<object>();
+    }
+
+    public async Task<object?> GetPromotionForBookAsync(int bookId)
+    {
+        var sql = "SELECT Id, BookId, Description, DiscountPercent, StartsAt, EndsAt FROM Promotions WHERE BookId = @BookId AND StartsAt <= GETDATE() AND EndsAt >= GETDATE()";
+        return await _db.QueryFirstOrDefaultAsync(sql, new { BookId = bookId });
+    }
+
+    public async Task<IEnumerable<object>> GetReviewsAsync(int bookId)
+    {
+        var sql = "SELECT Id, BookId, Author, Rating, Comment, CreatedAt FROM Reviews WHERE BookId = @BookId ORDER BY CreatedAt DESC";
+        return await _db.QueryAsync(sql, new { BookId = bookId });
     }
 }

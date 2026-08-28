@@ -32,6 +32,24 @@ app.MapPost("/api/orders", async (CreateOrderModel model, IOrderService service)
     return Results.Created($"/api/orders/{orderId}", new { orderId });
 });
 
+// Read projection for order status
+app.MapGet("/api/orders/view/{orderId}", async (Guid orderId) =>
+{
+    await using var db = new SqlConnection(connectionString);
+    var sql = "SELECT OrderId, UserId, Total, Status, UpdatedAt FROM OrdersView WHERE OrderId = @Id";
+    var row = await db.QueryFirstOrDefaultAsync(sql, new { Id = orderId });
+    return row is null ? Results.NotFound() : Results.Ok(row);
+});
+
+// List orders for a user from projection
+app.MapGet("/api/orders/user/{userId}/views", async (Guid userId) =>
+{
+    await using var db = new SqlConnection(connectionString);
+    var sql = "SELECT OrderId, UserId, Total, Status, UpdatedAt FROM OrdersView WHERE UserId = @UserId ORDER BY UpdatedAt DESC";
+    var rows = await db.QueryAsync(sql, new { UserId = userId });
+    return Results.Ok(rows);
+});
+
 // Background consumer: listen for payment processed events and update order status
 _ = Task.Run(() =>
 {

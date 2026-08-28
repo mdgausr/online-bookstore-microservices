@@ -13,5 +13,6 @@ export class ApiService {
   getBook(id: number): Observable<any> { return this.http.get(this.gateway + 'catalog/api/books/' + id); }
   addToCart(bookId: number, qty: number){ const userId = '00000000-0000-0000-0000-000000000001'; return this.http.post(this.gateway + 'basket/api/basket/' + userId + '/items', { bookId, quantity: qty }); }
   getCart(userId: string){ return this.http.get(this.gateway + 'basket/api/basket/' + userId); }
-  createOrder(userId: string, total: number){ return this.http.post(this.gateway + 'orders/api/orders', { userId, total }); }
+  createOrder(userId: string, total: number, idempotencyKey?: string){ return this.http.post(this.gateway + 'orders/api/orders', { userId, total, idempotencyKey }); }
+  getOrderView(orderId: string){ return this.http.get(this.gateway + 'orders/api/orders/view/' + orderId); }
 }
